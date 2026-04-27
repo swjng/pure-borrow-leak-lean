@@ -1,7 +1,9 @@
 # PureBorrowLeak
 
 Lean 4 formalisation of part of the leak-freedom argument from the
-blog post *Pure Borrow + Leak: chasing footnote 24*.
+blog post *Pure Borrow + Leak: chasing footnote 24*
+([EN](https://swjeong.netlify.app/notes/2026/04/27/pure-borrow-leak-rc-en.html) /
+[KO](https://swjeong.netlify.app/notes/2026/04/27/pure-borrow-leak-rc.html)).
 
 The post extends Pure Borrow (Matsushita & Ishii, PLDI 2026) with a
 `class Leak` and an `LRc` reference-counting primitive, conjecturing
