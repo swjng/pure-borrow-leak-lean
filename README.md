@@ -1,15 +1,24 @@
 # PureBorrowLeak
 
-A minimal Lean 4 formalisation of the static side of the leak-freedom
-argument from the blog post *Pure Borrow + Leak: footnote 24
-따라가보기*.
+Lean 4 formalisation of part of the leak-freedom argument from the
+blog post *Pure Borrow + Leak: chasing footnote 24*.
 
 The post extends Pure Borrow (Matsushita & Ishii, PLDI 2026) with a
-`class Leak` and an `LRc` reference-counting primitive, and conjectures
-that leak freedom (Theorem 5.3) generalises.  This repo discharges the
-*type-level* obligations of that argument; the runtime side (full
-association system, reduction, `Theorem 5.3*` proof) is deferred and
-exposed as a single `axiom`.
+`class Leak` and an `LRc` reference-counting primitive, conjecturing
+that leak freedom (Theorem 5.3) generalises.  This repo discharges:
+
+* the **qualitative classification** — which types are `Leak` /
+  `!Leak` and why, including a lifetime-aware refinement `LeakIn`
+  that strictly strengthens the paper's conjecture;
+* the **runtime-trace half** of the generalised theorem
+  (Theorem 5.3$^*$ (b)) — every reachable RC cell has Leak content;
+* a **decomposition** of the paper's original Theorem 5.3 (linear
+  half) into three small `Discipline` axioms, isolating exactly the
+  obligations that the paper's §B association system must discharge.
+
+The full mechanisation of paper Theorem 5.3 itself (the Linear
+Haskell type system in Fig. 25–29 plus the association judgment in
+Fig. 39–40) is left as separate work.
 
 ## What is mechanised
 
@@ -23,10 +32,22 @@ exposed as a single `axiom`.
 | `Leak.decidable` | proved |
 | `WellSeparated.{nil,cons_linear,cons_rc}` (Lemma 3) | proved |
 | `LifetimeLe` (paper §A.1 partial order) | defined |
-| `LeakIn α t` — lifetime-aware refinement of Leak | defined |
+| `LeakIn α t` — lifetime-aware refinement of `Leak` | defined |
 | `Leak.toLeakIn_static` | proved |
 | `LeakIn.antitone` (smaller `α` ⇒ more permissive) | proved |
 | `linearOnly_not_leakIn` (lifetime-indexed strengthening) | proved |
+
+`linearOnly_not_leak` is the structural backbone: any `LinearOnly`
+type is uninhabited under `Leak`.  This justifies the post's blanket
+classification of `Linearly`, `Now^α`, `Ref a`, `Mut^α a`, `BO^α a`
+as `!Leak` without case-by-case argument.
+
+`WellSeparated` and its constructors prove Lemma 3 (linear / RC heap
+disjointness): the well-separation invariant is preserved by
+appending a fresh linear or RC pointer that does not alias any
+existing pointer of the opposite kind.  This is the structural heart
+of the argument that `assoc-linear` and the new RC association rule
+do not interfere.
 
 ### Runtime side — minimal core, `PureBorrowLeak/Runtime.lean`
 
@@ -47,11 +68,11 @@ A minimal core calculus (`Tm`, `Heap`, small-step `Step`, RT-closure
 
 Adds binders (`var`, `lam`, `app`, `letIn`), the `linearly` block
 (`urVal`, `useUr`), `shift` and `subst` (de Bruijn), congruence
-reductions under `letIn` and `useUr`, and `β`-reduction.
+reductions under `letIn` and `useUr`, and β-reduction.
 
 | Theorem | Status |
 | --- | --- |
-| **`step_preserves_rleak`** (extended `Step`) | **proved**: 11 cases, 4 trivial heap-mutation, 7 non-heap pass-through |
+| **`step_preserves_rleak`** (extended `Step`) | **proved**: 11 cases (4 heap, 7 non-heap pass-through) |
 | `stepStar_preserves_rleak` | proved |
 | **`theorem_5_3_star_b_extended`** | **proved** |
 | `Discipline e` — abstract Linear Haskell typing obligation | axiom |
@@ -62,38 +83,28 @@ reductions under `letIn` and `useUr`, and `β`-reduction.
 | **`theorem_5_3_star`** | **proved** modulo the 3 `Discipline` axioms |
 
 The 3 `Discipline.*` axioms together carve out *exactly* what paper
-Theorem 5.3 needs to establish via the association system in §B.  The
-extended file does the reduction-trace bookkeeping; what remains is
-to *unfold* `Discipline` to a concrete typing judgment and discharge
-the three obligations from association rules.  That is the deferred
-5–7-week block.
+Theorem 5.3 needs to establish via the association system in §B.
+The extended file does the reduction-trace bookkeeping; what remains
+is to unfold `Discipline` to a concrete typing judgment and
+discharge the three obligations from association rules.
 
-`linearOnly_not_leak` is the structural backbone: any LinearOnly type
-is uninhabited under `Leak`.  This justifies the post's blanket
-classification of `Linearly`, `Now^α`, `Ref a`, `Mut^α a`, `BO^α a` as
-`!Leak` without case-by-case argument.
+## What is not mechanised
 
-`WellSeparated` and its constructors prove Lemma 3 (linear / RC heap
-disjointness): the well-separation invariant is preserved by appending
-a fresh linear or RC pointer that does not alias any existing pointer
-of the opposite kind.  This is the structural heart of the argument
-that `assoc-linear` and the new RC association rule do not interfere.
-
-## What is *not* mechanised
-
-* Paper Theorem 5.3 (`M = ∅` at normal form) is inherited as an
-  axiom.  Discharging it needs the full association judgment
-  `Γ̊ ⊢ t̂ ∝ ṫ :: T̊` from paper §B (37 pages of rules).  Estimated
-  5–7 weeks.  Until then `theorem_5_3_star` is *conditionally* proved.
+* Paper Theorem 5.3 itself (`M = ∅` at normal form).  Discharging it
+  needs the multiplicity-tracked Linear Haskell type system
+  (paper Fig. 25–29) and the association judgment
+  `Γ̊ ⊢ t̂ ∝ ṫ :: T̊` (paper §B, Fig. 39–40 — 37 pages of rules).
+  Until then `theorem_5_3_star` is *conditionally* proved.
 * Closure analysis (paper footnote 19, `FnMut`-style).  Our `Leak`
-  predicate has no rule for function types, which is the conservative
-  position; refining this needs the closure-capture extension that
-  paper itself defers.
-* The minimal core calculus omits `let`, `λ`, application, and
-  congruence reductions under contexts.  Adding them is mechanical
-  and does not affect the R-Leak invariant proof — every additional
-  rule either touches neither heap or reduces to one of the four
-  cases we handle.
+  predicate has no rule for function types, which is the
+  conservative position; refining this needs the closure-capture
+  extension that the paper itself defers.
+
+## Numbers
+
+* `sorry` count: 0.
+* Axiom count: 4 — Runtime's `theorem_5_3_a` for the minimal core,
+  plus the 3 `Discipline` axioms in Extended.
 
 ## Build
 
@@ -105,4 +116,4 @@ Tested with Lean 4.16.0.
 
 ## License
 
-CC0 / public domain.  Comments / corrections welcome.
+CC0 / public domain.  Comments and corrections welcome.
