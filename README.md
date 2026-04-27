@@ -22,6 +22,11 @@ exposed as a single `axiom`.
 | `fn_not_leak`, `linFn_not_leak` | proved |
 | `Leak.decidable` | proved |
 | `WellSeparated.{nil,cons_linear,cons_rc}` (Lemma 3) | proved |
+| `LifetimeLe` (paper §A.1 partial order) | defined |
+| `LeakIn α t` — lifetime-aware refinement of Leak | defined |
+| `Leak.toLeakIn_static` | proved |
+| `LeakIn.antitone` (smaller `α` ⇒ more permissive) | proved |
+| `linearOnly_not_leakIn` (lifetime-indexed strengthening) | proved |
 
 ### Runtime side — minimal core, `PureBorrowLeak/Runtime.lean`
 

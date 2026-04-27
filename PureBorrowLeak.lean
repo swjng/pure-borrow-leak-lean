@@ -248,6 +248,104 @@ example : ¬ Leak (Ty.refT Ty.int) := by decide
 example : ¬ Leak (Ty.bo Lifetime.static Ty.int) := by decide
 example : ¬ Leak (Ty.fn Ty.int Ty.int) := by decide
 
+/-! ## Lifetime ordering and `LeakIn` (lifetime-aware refinement)
+
+The `Leak` predicate above pins `Lend` / `Share` to `static` lifetime,
+which is the strongest case.  Paper §6 footnote 24 only mentions
+"leakable types" without lifetime sensitivity — so this is a
+refinement *beyond* the conjecture: a value of type `Lend^α a` /
+`Share^α a` is safe to leak in any context whose lifetime does not
+outlast α.
+
+We expose this as a separate predicate `LeakIn : Lifetime → Ty → Prop`
+parameterised by the *holder's* lifetime.  At `α = static` the
+storage lasts forever and the predicate degenerates to (a strict
+superset of) `Leak`. -/
+
+inductive LifetimeLe : Lifetime → Lifetime → Prop where
+  | refl       : LifetimeLe α α
+  | trans      : LifetimeLe α β → LifetimeLe β γ → LifetimeLe α γ
+  | top        : LifetimeLe α Lifetime.static
+  | meet_left  : LifetimeLe (Lifetime.meet α β) α
+  | meet_right : LifetimeLe (Lifetime.meet α β) β
+  | meet_glb   : LifetimeLe γ α → LifetimeLe γ β →
+                 LifetimeLe γ (Lifetime.meet α β)
+
+inductive LeakIn : Lifetime → Ty → Prop where
+  | int  {α}            : LeakIn α Ty.int
+  | bool {α}            : LeakIn α Ty.bool
+  | unit {α}            : LeakIn α Ty.unit
+  | pair {α t₁ t₂}      : LeakIn α t₁ → LeakIn α t₂ →
+                          LeakIn α (Ty.pair t₁ t₂)
+  | ur   {α t}          : LeakIn α t → LeakIn α (Ty.ur t)
+  | endL {α β}          : LeakIn α (Ty.endL β)
+  | lrc  {α t}          : LeakIn α (Ty.lrc t)
+  | lendBounded  {α β t} (hle : LifetimeLe α β) (ht : LeakIn α t) :
+                          LeakIn α (Ty.lendT β t)
+  | shareBounded {α β t} (hle : LifetimeLe α β) (ht : LeakIn α t) :
+                          LeakIn α (Ty.shareB β t)
+
+/-- `Leak T` is the special case `LeakIn static T`. -/
+theorem Leak.toLeakIn_static : ∀ {t}, Leak t → LeakIn Lifetime.static t := by
+  intro t hL
+  induction hL with
+  | int                    => exact LeakIn.int
+  | bool                   => exact LeakIn.bool
+  | unit                   => exact LeakIn.unit
+  | pair _ _ ih₁ ih₂       => exact LeakIn.pair ih₁ ih₂
+  | ur _ ih                => exact LeakIn.ur ih
+  | endL α                 => exact LeakIn.endL
+  | lrc t                  => exact LeakIn.lrc
+  | lendStatic _ ih        => exact LeakIn.lendBounded LifetimeLe.refl ih
+  | shareStatic _ ih       => exact LeakIn.shareBounded LifetimeLe.refl ih
+
+/-- The refinement is genuinely strict: `Lend^{al 0} Int` is leakable
+    in a context bounded by `al 0`, but is not `Leak`. -/
+example : LeakIn (Lifetime.al 0) (Ty.lendT (Lifetime.al 0) Ty.int) :=
+  LeakIn.lendBounded LifetimeLe.refl LeakIn.int
+
+example : ¬ Leak (Ty.lendT (Lifetime.al 0) Ty.int) := by
+  intro h
+  rcases lend_static_iff.mp h with ⟨heq, _⟩
+  cases heq
+
+/-- And the same trick works for `Share`. -/
+example : LeakIn (Lifetime.al 0) (Ty.shareB (Lifetime.al 0) Ty.int) :=
+  LeakIn.shareBounded LifetimeLe.refl LeakIn.int
+
+example : ¬ Leak (Ty.shareB (Lifetime.al 0) Ty.int) := by
+  intro h
+  rcases share_static_iff.mp h with ⟨heq, _⟩
+  cases heq
+
+/-- Anti-monotonicity: a leak-OK type at *bigger* lifetime stays
+    leak-OK at *smaller* lifetime.  Proof by induction on the
+    `LeakIn` derivation, generalising over the inner lifetime. -/
+theorem LeakIn.antitone :
+    ∀ {α β t}, LifetimeLe α β → LeakIn β t → LeakIn α t := by
+  intro α β t hle hLI
+  induction hLI generalizing α with
+  | int                    => exact LeakIn.int
+  | bool                   => exact LeakIn.bool
+  | unit                   => exact LeakIn.unit
+  | pair _ _ ih₁ ih₂       => exact LeakIn.pair (ih₁ hle) (ih₂ hle)
+  | ur _ ih                => exact LeakIn.ur (ih hle)
+  | endL                   => exact LeakIn.endL
+  | lrc                    => exact LeakIn.lrc
+  | lendBounded h _ ih     => exact LeakIn.lendBounded
+                                       (LifetimeLe.trans hle h) (ih hle)
+  | shareBounded h _ ih    => exact LeakIn.shareBounded
+                                       (LifetimeLe.trans hle h) (ih hle)
+
+/-- `LinearOnly` is uninhabited under `LeakIn` for *every* lifetime,
+    not just `static`.  This is the lifetime-indexed strengthening of
+    `linearOnly_not_leak`: a borrower / `Now` / `Ref` type cannot be
+    leaked into any RC cell, regardless of its holder's lifetime. -/
+theorem linearOnly_not_leakIn :
+    ∀ {α t}, LinearOnly t → ¬ LeakIn α t := by
+  intro α t hLO hLI
+  cases hLO <;> cases hLI
+
 /-! ## Runtime side: what `Theorem 5.3*` would say
 
 We sketch the runtime model just enough to *state* Theorem 5.3* and
