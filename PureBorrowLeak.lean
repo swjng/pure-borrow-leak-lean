@@ -317,28 +317,12 @@ theorem WellSeparated.cons_rc {Γ : List PtsTo} {ℓ y}
       cases hl with
       | tail _ hl' => exact h ℓ' x' y' hl' hr'
 
-/-! ### Theorem 5.3* (statement only)
+/-! ### Theorem 5.3* — see `PureBorrowLeak.Runtime`
 
-We state it abstractly; the proof requires a reduction relation, the
-association judgment `Γ̊ ⊢ t̂ ∝ ṫ :: T̊`, and case analysis over paper
-§B's 37 pages of rules.  Out of scope for the blog post. -/
-
-structure Config where
-  M : List PtsTo        -- linear heap (mutative semantics)
-  R : List PtsTo        -- RC heap
-  ws : WellSeparated (M ++ R)
-
-/-- The crucial *projection* invariant: at normal form, the linear
-    heap is empty and every RC cell's content has a `Leak` type.
-
-    We expose it as an axiom for now; the proof obligation is what
-    the Lean continuation must discharge. -/
-axiom theorem_5_3_star
-    (g : Config)
-    (safe : True)        -- placeholder: paper §5.4 association
-    (normal : True)      -- placeholder: normal form predicate
-    : g.M = [] ∧
-      ∀ ℓ x, PtsTo.rc ℓ x ∈ g.R →
-        ∃ T, Leak T  -- and `x` has type `T` under the association
+The full statement and proof live in `PureBorrowLeak.Runtime`, where
+we mechanise a small-step calculus and prove `theorem_5_3_star_b`
+(every reachable RC cell has Leak content) directly.  Part (a),
+`M = ∅` at normal form, is paper Theorem 5.3 verbatim and stays as
+`axiom theorem_5_3_a` in that file. -/
 
 end PureBorrowLeak

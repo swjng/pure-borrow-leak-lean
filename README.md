@@ -13,15 +13,30 @@ exposed as a single `axiom`.
 
 ## What is mechanised
 
-| File | Content | Status |
-| --- | --- | --- |
-| `PureBorrowLeak.lean` | Type syntax, `Leak`, `LinearOnly` | full proofs |
-| same | `linearOnly_not_leak` | proved |
-| same | `lend_static_iff`, `share_static_iff` | proved |
-| same | `fn_not_leak`, `linFn_not_leak` | proved |
-| same | `Leak.decidable` | proved |
-| same | `WellSeparated`, `.nil`, `.cons_linear`, `.cons_rc` | proved |
-| same | `theorem_5_3_star` | **axiom** (deferred) |
+### Static side — `PureBorrowLeak.lean`
+
+| Theorem | Status |
+| --- | --- |
+| `linearOnly_not_leak` | proved |
+| `lend_static_iff`, `share_static_iff` | proved |
+| `fn_not_leak`, `linFn_not_leak` | proved |
+| `Leak.decidable` | proved |
+| `WellSeparated.{nil,cons_linear,cons_rc}` (Lemma 3) | proved |
+
+### Runtime side — `PureBorrowLeak/Runtime.lean`
+
+A minimal core calculus (`Tm`, `Heap`, small-step `Step`, RT-closure
+`StepStar`) with the four heap operations (`newRef`, `freeRef`,
+`newLRc`, `freeLRc`).
+
+| Theorem | Status |
+| --- | --- |
+| `RLeakInv.{empty,cons_iff,filter}` | proved |
+| `step_preserves_rleak` | proved |
+| `stepStar_preserves_rleak` | proved |
+| **`theorem_5_3_star_b`** — every reachable RC cell has Leak content | **proved** |
+| `theorem_5_3_a` — paper Theorem 5.3 (`M = ∅` at normal form) | axiom (inherited) |
+| **`theorem_5_3_star`** — combined (a) ∧ (b) | **proved** modulo `theorem_5_3_a` |
 
 `linearOnly_not_leak` is the structural backbone: any LinearOnly type
 is uninhabited under `Leak`.  This justifies the post's blanket
@@ -36,11 +51,19 @@ that `assoc-linear` and the new RC association rule do not interfere.
 
 ## What is *not* mechanised
 
-The runtime side: a reduction relation on `Config`, the full
-association judgement `Γ̊ ⊢ t̂ ∝ ṫ :: T̊`, and the case analysis over
-paper §B's 37 pages of association rules to discharge `Theorem 5.3*`.
-Estimated 5–7 weeks.  See `axiom theorem_5_3_star` near the bottom of
-`PureBorrowLeak.lean` for the precise statement.
+* Paper Theorem 5.3 (`M = ∅` at normal form) is inherited as an
+  axiom.  Discharging it needs the full association judgment
+  `Γ̊ ⊢ t̂ ∝ ṫ :: T̊` from paper §B (37 pages of rules).  Estimated
+  5–7 weeks.  Until then `theorem_5_3_star` is *conditionally* proved.
+* Closure analysis (paper footnote 19, `FnMut`-style).  Our `Leak`
+  predicate has no rule for function types, which is the conservative
+  position; refining this needs the closure-capture extension that
+  paper itself defers.
+* The minimal core calculus omits `let`, `λ`, application, and
+  congruence reductions under contexts.  Adding them is mechanical
+  and does not affect the R-Leak invariant proof — every additional
+  rule either touches neither heap or reduces to one of the four
+  cases we handle.
 
 ## Build
 
