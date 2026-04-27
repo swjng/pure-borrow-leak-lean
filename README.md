@@ -23,7 +23,7 @@ exposed as a single `axiom`.
 | `Leak.decidable` | proved |
 | `WellSeparated.{nil,cons_linear,cons_rc}` (Lemma 3) | proved |
 
-### Runtime side — `PureBorrowLeak/Runtime.lean`
+### Runtime side — minimal core, `PureBorrowLeak/Runtime.lean`
 
 A minimal core calculus (`Tm`, `Heap`, small-step `Step`, RT-closure
 `StepStar`) with the four heap operations (`newRef`, `freeRef`,
@@ -37,6 +37,31 @@ A minimal core calculus (`Tm`, `Heap`, small-step `Step`, RT-closure
 | **`theorem_5_3_star_b`** — every reachable RC cell has Leak content | **proved** |
 | `theorem_5_3_a` — paper Theorem 5.3 (`M = ∅` at normal form) | axiom (inherited) |
 | **`theorem_5_3_star`** — combined (a) ∧ (b) | **proved** modulo `theorem_5_3_a` |
+
+### Runtime side — extended core, `PureBorrowLeak/Extended.lean`
+
+Adds binders (`var`, `lam`, `app`, `letIn`), the `linearly` block
+(`urVal`, `useUr`), `shift` and `subst` (de Bruijn), congruence
+reductions under `letIn` and `useUr`, and `β`-reduction.
+
+| Theorem | Status |
+| --- | --- |
+| **`step_preserves_rleak`** (extended `Step`) | **proved**: 11 cases, 4 trivial heap-mutation, 7 non-heap pass-through |
+| `stepStar_preserves_rleak` | proved |
+| **`theorem_5_3_star_b_extended`** | **proved** |
+| `Discipline e` — abstract Linear Haskell typing obligation | axiom |
+| `Discipline.preserved` — one-step preservation | axiom |
+| `Discipline.atValue_empty` — discipline ⇒ `M = []` at value | axiom |
+| `Discipline.preserved_star` — many-step preservation | proved |
+| **`theorem_5_3_a`** | **proved** modulo the 3 `Discipline` axioms |
+| **`theorem_5_3_star`** | **proved** modulo the 3 `Discipline` axioms |
+
+The 3 `Discipline.*` axioms together carve out *exactly* what paper
+Theorem 5.3 needs to establish via the association system in §B.  The
+extended file does the reduction-trace bookkeeping; what remains is
+to *unfold* `Discipline` to a concrete typing judgment and discharge
+the three obligations from association rules.  That is the deferred
+5–7-week block.
 
 `linearOnly_not_leak` is the structural backbone: any LinearOnly type
 is uninhabited under `Leak`.  This justifies the post's blanket
